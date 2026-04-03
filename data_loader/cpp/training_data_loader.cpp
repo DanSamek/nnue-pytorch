@@ -167,12 +167,18 @@ inline bool is_passed_pawn(Color color, Square square, Bitboard opponentPawns) {
     return passed;
 }
 
-inline int passed_pawn_index(Color color, Square square) {
+inline int passed_pawn_index(Color perspective, Color color, Square square) {
     constexpr int offset = 60720;
-    int index = int(color) * 40 + (int(square) - (int(color) + 1) * 8);
+    auto perspective_square = Square(int(square) ^ (int(perspective) * 56));
+
+    int rank = int(perspective_square.rank());
+    int rel_rank = (color == perspective) ? rank : (7 - rank);
+
+    int index = int(color) * 40 + int(perspective_square.file()) * 5 + (rel_rank - ((color == perspective) ? 1 : 2));
     assert(index >= 0 && index <= 79);
     return index + offset;
 }
+
 
 constexpr ThreatOffsetTable threatoffsets  = threatfeaturecalc.table;
 constexpr int               threatfeatures = threatfeaturecalc.totalfeatures;
@@ -305,10 +311,10 @@ struct FullThreats {
 
                     Bitboard opponent_pawns = pos.piecesBB(i == int(Color::Black) ? whitePawn : blackPawn);
                     for (Square from : bb){
-                        if (!is_passed_pawn(color, from, opponent_pawns))
+                        if (!is_passed_pawn(c, from, opponent_pawns))
                             continue;
 
-                        int index = passed_pawn_index(color, from);
+                        int index = passed_pawn_index(color, c, from);
                         // index is always >= 0.
                         values[k]   = 1.0f;
                         features[k] = index;
