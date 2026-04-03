@@ -91,6 +91,34 @@ struct ThreatFeatureCalculation {
     int               totalfeatures;
 };
 
+inline constexpr auto PassedPawnsMasks = []() constexpr {
+    std::array<std::array<Bitboard, 64>, 2> masks{};
+    for (Square s1 = a2; s1 <= h6; ++s1){
+        int tmp = int(s1) + 8;
+        File file = s1.file();
+        while (tmp <= int(h7))
+        {
+            masks[int(Color::White)][int(s1)] |= Bitboard::square(Square(tmp));
+            if (file != fileH) masks[int(Color::White)][int(s1)] |= Bitboard::square(Square(tmp + 1));
+            if (file != fileA) masks[int(Color::White)][int(s1)] |= Bitboard::square(Square(tmp - 1));
+            tmp += 8;
+        }
+    }
+
+    for (Square s1 = a3; s1 <= h7; ++s1){
+        int tmp = int(s1) - 8;
+        File file = s1.file();
+        while (tmp >= int(a2))
+        {
+            masks[int(Color::Black)][int(s1)] |= Bitboard::square(Square(tmp));
+            if (file != fileH) masks[int(Color::Black)][int(s1)] |= Bitboard::square(Square(tmp + 1));
+            if (file != fileA) masks[int(Color::Black)][int(s1)] |= Bitboard::square(Square(tmp - 1));
+            tmp -= 8;
+        }
+    }
+    return masks;
+}();
+
 constexpr auto threatfeaturecalc = []() {
     ThreatOffsetTable t{};
 
@@ -119,6 +147,9 @@ constexpr auto threatfeaturecalc = []() {
                     attacks |= s;
                     squareoffset += attacks.count();
                 }
+
+                pieceoffset += piece == (int)whitePawn && (from >= int(a2) && from <= int(h6));
+                pieceoffset += piece == (int)blackPawn && (from >= int(a3) && from <= int(h7));
             }
             t[piece][64] = squareoffset;
             pieceoffset += numvalidtargets[piece] * squareoffset;
@@ -127,9 +158,25 @@ constexpr auto threatfeaturecalc = []() {
     return ThreatFeatureCalculation{t, pieceoffset};
 }();
 
+inline bool is_passed_pawn(Color color, Square square, Bitboard opponentPawns) {
+    if (color == Color::White && square.rank() == rank7) return false;
+    if (color == Color::Black && square.rank() == rank2) return false;
+
+    Bitboard bb = PassedPawnsMasks[int(color)][int(square)];
+    bool passed = (opponentPawns & bb).isEmpty();
+    return passed;
+}
+
+inline int passed_pawn_index(Color color, Square square) {
+    constexpr int offset = 60720;
+    int index = int(color) * 40 + (int(square) - (int(color) + 1) * 8);
+    assert(index >= 0 && index <= 79);
+    return index + offset;
+}
+
 constexpr ThreatOffsetTable threatoffsets  = threatfeaturecalc.table;
 constexpr int               threatfeatures = threatfeaturecalc.totalfeatures;
-static_assert(threatfeatures == 60720);
+static_assert(threatfeatures == 60800);
 
 struct FullThreats {
     static constexpr std::string_view NAME = "Full_Threats";
@@ -140,7 +187,7 @@ struct FullThreats {
     static constexpr int PIECE_TYPE_NB       = 6;
     static constexpr int MAX_ACTIVE_FEATURES = 128;
 
-    static constexpr int INPUTS = threatfeatures;  // 60,720
+    static constexpr int INPUTS = threatfeatures;  // 60,800
 
         // clang-format off
     static constexpr Square OrientTBL[COLOR_NB][SQUARE_NB] = {
@@ -256,6 +303,17 @@ struct FullThreats {
                         }
                     }
 
+                    Bitboard opponent_pawns = pos.piecesBB(i == int(Color::Black) ? whitePawn : blackPawn);
+                    for (Square from : bb){
+                        if (!is_passed_pawn(color, from, opponent_pawns))
+                            continue;
+
+                        int index = passed_pawn_index(color, from);
+                        // index is always >= 0.
+                        values[k]   = 1.0f;
+                        features[k] = index;
+                        k++;
+                    }
                 }
                 else {
                     for (Square from : bb) {
