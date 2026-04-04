@@ -82,7 +82,7 @@ struct HalfKAv2_hmExtractor: IFeatureExtractor {
     }
 };
 
-constexpr int numvalidtargets[12] = {6, 6, 10, 10, 8, 8, 8, 8, 10, 10, 0, 0};
+constexpr int numvalidtargets[12] = {6, 6, 12, 12, 10, 10, 10, 10, 12, 12, 0, 0};
 
 using ThreatOffsetTable = std::array<std::array<int, 66>, 12>;
 
@@ -129,7 +129,7 @@ constexpr auto threatfeaturecalc = []() {
 
 constexpr ThreatOffsetTable threatoffsets  = threatfeaturecalc.table;
 constexpr int               threatfeatures = threatfeaturecalc.totalfeatures;
-static_assert(threatfeatures == 60720);
+static_assert(threatfeatures == 73712);
 
 struct FullThreats {
     static constexpr std::string_view NAME = "Full_Threats";
@@ -140,7 +140,7 @@ struct FullThreats {
     static constexpr int PIECE_TYPE_NB       = 6;
     static constexpr int MAX_ACTIVE_FEATURES = 128;
 
-    static constexpr int INPUTS = threatfeatures;  // 60,720
+    static constexpr int INPUTS = threatfeatures;  // 73,712
 
         // clang-format off
     static constexpr Square OrientTBL[COLOR_NB][SQUARE_NB] = {
@@ -164,10 +164,10 @@ struct FullThreats {
 
     static constexpr int map[PIECE_TYPE_NB][PIECE_TYPE_NB] = {
       {0, 1, -1, 2, -1, -1},
-      {0, 1, 2, 3, 4, -1},
-      {0, 1, 2, 3, -1, -1},
-      {0, 1, 2, 3, -1, -1},
-      {0, 1, 2, 3, 4, -1},
+      {0, 1, 2, 3, 4, 5},
+      {0, 1, 2, 3, -1, 4},
+      {0, 1, 2, 3, -1, 4},
+      {0, 1, 2, 3, 4, 5},
       {-1, -1, -1, -1, -1, -1}
     };
     // clang-format on
@@ -258,12 +258,29 @@ struct FullThreats {
 
                 }
                 else {
+                    Square   enemy_ksq = pos.kingSquare(!c);
+                    Bitboard king_ring = pos.attacks(enemy_ksq);
+
                     for (Square from : bb) {
                         Bitboard attacks = pos.attacks(from) & pieces;
                         for (Square to : attacks) {
                             Piece attkd = pos.pieceAt(to);
                             int   index = threat_index(color, attkr, from, to, attkd, ksq);
                             if (index >= 0) {
+                                values[k]   = 1.0f;
+                                features[k] = index;
+                                k++;
+                            }
+                        }
+
+                        // Set of attacks on king ring.
+                        Bitboard king_ring_attacks = pos.attacks(from) & king_ring;
+                        Piece fake_opponent_king = c == Color::White ? blackKing : whiteKing;
+                        for (Square to : king_ring_attacks)
+                        {
+                            int index = threat_index(color, attkr, from, to, fake_opponent_king, ksq);
+                            if (index >= 0)
+                            {
                                 values[k]   = 1.0f;
                                 features[k] = index;
                                 k++;
