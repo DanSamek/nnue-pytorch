@@ -127,6 +127,46 @@ constexpr auto threatfeaturecalc = []() {
     return ThreatFeatureCalculation{t, pieceoffset};
 }();
 
+inline constexpr auto PassedPawnsMasks = []() constexpr {
+    std::array<std::array<Bitboard, 64>, 2> masks{};
+    for (Square s1 = a2; s1 <= h6; ++s1){
+        int tmp = int(s1) + 8;
+        File file = s1.file();
+        while (tmp <= (int)h7)
+        {
+            masks[(int)Color::White][(int)s1] |= Bitboard::square(Square(tmp));
+            if (file != fileH) masks[(int)Color::White][(int)s1] |= Bitboard::square(Square(tmp + 1));
+            if (file != fileA) masks[(int)Color::White][(int)s1] |= Bitboard::square(Square(tmp - 1));
+            tmp += 8;
+        }
+    }
+
+    for (Square s1 = a3; s1 <= h7; ++s1){
+        int tmp = int(s1) - 8;
+        File file = s1.file();
+        while (tmp >= (int)a2)
+        {
+            masks[(int)Color::Black][(int)s1] |= Bitboard::square(Square(tmp));
+            if (file != fileH) masks[(int)Color::Black][(int)s1] |= Bitboard::square(Square(tmp + 1));
+            if (file != fileA) masks[(int)Color::Black][(int)s1] |= Bitboard::square(Square(tmp - 1));
+            tmp -= 8;
+        }
+    }
+    return masks;
+}();
+
+inline bool is_passed_pawn(Color color, Square square, Bitboard opponentPawns) {
+    Bitboard bb = PassedPawnsMasks[(int)color][(int)square];
+    bool passed = (opponentPawns & bb).isEmpty();
+    return passed;
+}
+
+inline Square reverse_target_promo_square(Square square, Color color)
+{
+    return {square.file(), color == Color::White ? rank1 : rank8};
+}
+
+
 constexpr ThreatOffsetTable threatoffsets  = threatfeaturecalc.table;
 constexpr int               threatfeatures = threatfeaturecalc.totalfeatures;
 static_assert(threatfeatures == 60720);
@@ -249,6 +289,21 @@ struct FullThreats {
                         Square from  = Square((int) to - (c == Color::White ? 8 : -8));
                         Piece  attkd = pos.pieceAt(to);
                         int    index = threat_index(color, attkr, from, to, attkd, ksq);
+                        if (index >= 0) {
+                            values[k]   = 1.0f;
+                            features[k] = index;
+                            k++;
+                        }
+                    }
+
+                    // Set of passed pawns
+                    Bitboard opponent_pawns = pos.piecesBB(c == Color::White ? blackPawn : whitePawn);
+                    for (Square from : bb){
+                        if (!is_passed_pawn(c, from, opponent_pawns))
+                            continue;
+
+                        Square to = reverse_target_promo_square(from, c);
+                        int index = threat_index(color, attkr, from, to, attkr, ksq);
                         if (index >= 0) {
                             values[k]   = 1.0f;
                             features[k] = index;
