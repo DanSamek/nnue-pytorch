@@ -31,8 +31,8 @@ class NNUE(L.LightningModule):
         num_batches_per_epoch=None,
         quantize_config=QuantizationConfig(),
         param_index=0,
-        num_psqt_buckets=8,
-        num_ls_buckets=8,
+        num_psqt_buckets=24,
+        num_ls_buckets=24,
     ):
         super().__init__()
 
