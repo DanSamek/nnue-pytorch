@@ -419,11 +419,34 @@ SparseBatch::~SparseBatch() {
     delete[] layer_stack_indices;
 }
 
+// 0..95
+inline int pawn_progress_idx(const Position& position) {
+    int pawnProgress = 0;
+    Bitboard pawns = position.piecesBB(whitePawn);
+    for (Square ps : pawns)
+    {
+        pawnProgress += 7 - (int)ps.rank();
+    }
+    pawns = position.piecesBB(blackPawn);
+    for (Square ps : pawns)
+    {
+        pawnProgress += (int)ps.rank();
+    }
+    return std::min(pawnProgress, 95);
+}
+
+int bucket_index(const Position& position) {
+    const int pawn_progress = pawn_progress_idx(position) / 32; // [0..2]
+    const int pieces        = (position.piecesBB().count() - 1) / 4; // [0..7]
+    const int bucket        = pawn_progress * 8 + pieces;
+    return bucket;
+}
+
 void SparseBatch::fill_entry(const IFeatureExtractor& fs, int i, const TrainingDataEntry& e) {
     is_white[i]            = static_cast<float>(e.pos.sideToMove() == Color::White);
     outcome[i]             = (e.result + 1.0f) / 2.0f;
     score[i]               = e.score;
-    psqt_indices[i]        = (e.pos.piecesBB().count() - 1) / 4;
+    psqt_indices[i]        = bucket_index(e.pos);
     layer_stack_indices[i] = psqt_indices[i];
     fill_features(fs, i, e);
 }
