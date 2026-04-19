@@ -12,8 +12,8 @@ class NNUEModel(nn.Module):
         feature_name: str,
         config: ModelConfig,
         quantize_config: QuantizationConfig,
-        num_psqt_buckets: int = 24,
-        num_ls_buckets: int = 24,
+        num_psqt_buckets: int = 16,
+        num_ls_buckets: int = 16,
     ):
         super().__init__()
 

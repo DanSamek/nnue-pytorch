@@ -419,24 +419,37 @@ SparseBatch::~SparseBatch() {
     delete[] layer_stack_indices;
 }
 
-// 0..95
 inline int pawn_progress_idx(const Position& position) {
+    constexpr int MAXIMUM = 96;
     int pawnProgress = 0;
+    int alivePawns = 0;
+
     Bitboard pawns = position.piecesBB(whitePawn);
     for (Square ps : pawns)
     {
         pawnProgress += 7 - (int)ps.rank();
+        alivePawns++;
     }
+
     pawns = position.piecesBB(blackPawn);
     for (Square ps : pawns)
     {
         pawnProgress += (int)ps.rank();
+        alivePawns++;
     }
-    return std::min(pawnProgress, 95);
+
+    if (alivePawns == 0)
+        return 0;
+
+    const int possibleMaximum    = alivePawns * 6;
+    const int scaledPawnProgress = (pawnProgress * MAXIMUM) / possibleMaximum;
+    assert(scaledPawnProgress <= 96);
+
+    return std::min(scaledPawnProgress, 95);
 }
 
 int bucket_index(const Position& position) {
-    const int pawn_progress = pawn_progress_idx(position) / 32; // [0..2]
+    const int pawn_progress = pawn_progress_idx(position) / 72; // [0..1]
     const int pieces        = (position.piecesBB().count() - 1) / 4; // [0..7]
     const int bucket        = pawn_progress * 8 + pieces;
     return bucket;
