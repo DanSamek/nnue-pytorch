@@ -419,11 +419,21 @@ SparseBatch::~SparseBatch() {
     delete[] layer_stack_indices;
 }
 
+inline int bucket_idx(const Position& position) {
+    const int pawn_count     = position.pieceCount(whitePawn) + position.pieceCount(blackPawn);
+    const int non_pawn_count = position.piecesBB().count() - pawn_count - 2; // We also remove kings.
+    const int pawn_index = std::min(pawn_count / 11, 1);
+    const int non_pawn_index = std::min(non_pawn_count / 4, 3);
+    const int bucket = pawn_index * 4 + non_pawn_index;
+    assert(bucket <= 7);
+    return bucket;
+}
+
 void SparseBatch::fill_entry(const IFeatureExtractor& fs, int i, const TrainingDataEntry& e) {
     is_white[i]            = static_cast<float>(e.pos.sideToMove() == Color::White);
     outcome[i]             = (e.result + 1.0f) / 2.0f;
     score[i]               = e.score;
-    psqt_indices[i]        = (e.pos.piecesBB().count() - 1) / 4;
+    psqt_indices[i]        = bucket_idx(e.pos);
     layer_stack_indices[i] = psqt_indices[i];
     fill_features(fs, i, e);
 }
